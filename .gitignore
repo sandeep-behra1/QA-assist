@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Secrets / local config (keep the template)
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local uploads / runtime files
+backend/storage/audio/*
+!backend/storage/audio/.gitkeep
+
+# Database / local data
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
