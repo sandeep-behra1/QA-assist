@@ -26,7 +26,7 @@ export function Layout() {
         <div className="app-brand">
           <span className="brand-mark">QA</span>
           <div>
-            <div className="brand-title">CIMET QA Gate</div>
+            <div className="brand-title">CIMET QA SaleGuard</div>
             <div className="brand-subtitle">Score the sale before it ships</div>
           </div>
         </div>

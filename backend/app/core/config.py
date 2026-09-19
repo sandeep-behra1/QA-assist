@@ -56,7 +56,7 @@ class Settings(BaseModel):
     mock, so no API key is ever required for the demo.
     """
 
-    app_name: str = "CIMET QA Gate"
+    app_name: str = "CIMET QA SaleGuard"
     database_url: str = DEFAULT_DATABASE_URL
     sql_echo: bool = False
 

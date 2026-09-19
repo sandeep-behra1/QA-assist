@@ -1,4 +1,4 @@
-# CIMET QA Gate: Architecture, Defence Points and Interview Prep
+# CIMET QA SaleGuard: Architecture, Defence Points and Interview Prep
 
 A reading guide for presenting and defending the project. Read sections 1-3 first (10 minutes), then use section 4 (defence points) and section 5 (Q&A) to rehearse.
 
@@ -8,7 +8,7 @@ A reading guide for presenting and defending the project. Read sections 1-3 firs
 
 Sales calls are regulated. Before a sale is sent to the retailer, the call must be checked: were the required disclosures read out, did the rates, email, NMI and other details the agent confirmed match the records, was the payment recording muted, and so on.
 
-**CIMET QA Gate** takes a call recording, turns it into a timestamped transcript, runs a set of data-driven checks against it, and produces one of three outcomes:
+**CIMET QA SaleGuard** takes a call recording, turns it into a timestamped transcript, runs a set of data-driven checks against it, and produces one of three outcomes:
 
 | Outcome | Meaning |
 |---|---|

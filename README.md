@@ -1,4 +1,4 @@
-# CIMET QA Gate — "Score the Sale Before It Ships"
+# CIMET QA SaleGuard — "Score the Sale Before It Ships"
 
 An evidence-backed QA scoring engine for sales calls. Every completed sale is
 scored against the retailer checklist that was **in force on its call date**,

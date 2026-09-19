@@ -10,7 +10,7 @@ from app.seed.seed_data import seed_all
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Seed the CIMET QA Gate database.")
+    parser = argparse.ArgumentParser(description="Seed the CIMET QA SaleGuard database.")
     parser.add_argument(
         "--reset",
         action="store_true",

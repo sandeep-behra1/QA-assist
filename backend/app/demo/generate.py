@@ -27,7 +27,7 @@ def _sheet(scenarios: list[Scenario], durations: dict[str, float]) -> str:
     lines = [
         "# Demo calls",
         "",
-        "Synthetic recordings for the CIMET QA Gate demo. Every person, address, number and email is invented.",
+        "Synthetic recordings for the CIMET QA SaleGuard demo. Every person, address, number and email is invented.",
         "",
         "**How to use one:** Add Lead -> choose the `.wav` -> **Transcribe** -> the sale details fill in from the",
         "file name (edit anything you like) -> **Save & Score**.",
