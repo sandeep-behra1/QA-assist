@@ -41,3 +41,7 @@ backend/storage/audio/*
 
 # Logs
 *.log
+
+# Generated demo recordings (recreate with: python -m app.demo.generate)
+backend/demo_calls/*
+!backend/demo_calls/.gitkeep

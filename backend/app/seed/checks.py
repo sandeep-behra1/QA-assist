@@ -116,7 +116,7 @@ def _factual_checks() -> list[dict]:
             critical=True,
             order=50,
             expected_source="LEAD.customer_email",
-            config={"search_keywords": ["email", "e-mail"]},
+            config={"search_keywords": ["email", "e-mail"], "context_window": 2},
         ),
         _check(
             "PEAK_RATE_MATCH",
@@ -169,7 +169,7 @@ def _factual_checks() -> list[dict]:
             order=90,
             evidence_source=FULL,
             expected_source="LEAD.customer_dob",
-            config={"search_keywords": ["date of birth", "born", "d.o.b"]},
+            config={"search_keywords": ["date of birth", "born", "d.o.b"], "context_window": 1},
         ),
         _check(
             "NMI_MATCH",
@@ -181,7 +181,11 @@ def _factual_checks() -> list[dict]:
             order=100,
             evidence_source=FULL,
             expected_source="LEAD.attributes.nmi",
-            config={"search_keywords": ["nmi", "meter identifier", "meter number"], "min_length": 10},
+            config={
+                "search_keywords": ["nmi", "n m i", "n-m-i", "meter identifier", "meter number"],
+                "min_length": 10,
+                "context_window": 1,
+            },
             conditions={"LEAD.attributes.fuel_type": ["ELECTRICITY", "DUAL"]},
         ),
         _check(
@@ -194,7 +198,7 @@ def _factual_checks() -> list[dict]:
             order=110,
             evidence_source=FULL,
             expected_source="LEAD.attributes.mirn",
-            config={"search_keywords": ["mirn", "gas meter"], "min_length": 10},
+            config={"search_keywords": ["mirn", "gas meter"], "min_length": 10, "context_window": 1},
             conditions={"LEAD.attributes.fuel_type": ["GAS", "DUAL"]},
         ),
         _check(
@@ -218,7 +222,7 @@ def _factual_checks() -> list[dict]:
             order=130,
             evidence_source=FULL,
             expected_source="LEAD.attributes.life_support",
-            config={"search_keywords": ["life support"]},
+            config={"search_keywords": ["life support"], "context_window": 1},
         ),
         _check(
             "MOVE_IN_DATE_MATCH",
@@ -230,7 +234,10 @@ def _factual_checks() -> list[dict]:
             order=140,
             evidence_source=FULL,
             expected_source="LEAD.attributes.move_in_date",
-            config={"search_keywords": ["move in", "moving in", "move-in", "connection date"]},
+            config={
+                "search_keywords": ["move in", "moving in", "move-in", "connection date"],
+                "context_window": 1,
+            },
         ),
         _check(
             "CONCESSION_MATCH",
@@ -242,7 +249,10 @@ def _factual_checks() -> list[dict]:
             order=150,
             evidence_source=FULL,
             expected_source="LEAD.attributes.concession",
-            config={"search_keywords": ["concession", "pension card", "health care card"]},
+            config={
+                "search_keywords": ["concession", "pension card", "health care card"],
+                "context_window": 1,
+            },
         ),
         _check(
             "GIFT_CARD_VALUE_MATCH",
@@ -271,7 +281,12 @@ def _behaviour_checks() -> list[dict]:
             order=200,
             evidence_source=FULL,
             weight=0.5,
-            config={"metric": "DEAD_AIR", "max_silence_seconds": 8.0},
+            config={
+                "metric": "DEAD_AIR",
+                "max_silence_seconds": 8.0,
+                # Silence after "I'll mute the recording" is the payment-privacy sequence.
+                "exclude_gaps_after_phrases": ["mute the recording", "pause the recording"],
+            },
         ),
         _check(
             "INTERRUPTIONS",
@@ -296,6 +311,8 @@ def _behaviour_checks() -> list[dict]:
             weight=0.5,
             config={
                 "metric": "RAPPORT",
+                # Only the opening and closing are judged, so only those are sent.
+                "segment_sample": {"first": 3, "last": 3},
                 "criteria": "Agent greets the customer warmly, thanks them, and offers help.",
                 "semantic_keywords": [
                     "thanks for your time",
@@ -320,6 +337,9 @@ def _behaviour_checks() -> list[dict]:
             weight=0.5,
             config={
                 "metric": "OBJECTION_HANDLING",
+                # Only meaningful when the customer actually raises a concern.
+                "applies_when_keywords": ["not sure about", "not sure if", "not sure it", "not sure, to be honest", "stay where i am", "couldn't be bothered", "too expensive", "cheaper", "think about it", "not interested", "not much saving", "have to think", "talk to my"],
+                "context_window": 2,
                 "criteria": "Agent acknowledges the objection and explains without pressuring.",
                 "semantic_keywords": [
                     "i understand",
@@ -345,6 +365,28 @@ COOLING_OFF_CHECK = _check(
 )
 
 
+PAYMENT_MUTE_CHECK = _check(
+    "PAYMENT_RECORDING_MUTED",
+    "Payment Details Not Recorded",
+    "When payment is collected on the call, the agent must pause or mute the recording first "
+    "(added in checklist v2).",
+    CheckType.VERBATIM,
+    EvaluationMethod.NORMALIZED_TEXT,
+    critical=True,
+    order=46,
+    config={
+        "required_phrases": [
+            "mute the recording",
+            "pause the recording",
+            "pause recording",
+            "stop the recording",
+        ]
+    },
+    # Only applies when the CRM says payment was taken on this call.
+    conditions={"LEAD.attributes.payment_collected": True},
+)
+
+
 def checks_v1() -> list[dict]:
     """Older wording; no cooling-off requirement yet."""
     return [
@@ -359,6 +401,7 @@ def checks_v2() -> list[dict]:
     return [
         *_script_checks(DISCLAIMER_V2, ["default market offer"]),
         COOLING_OFF_CHECK,
+        PAYMENT_MUTE_CHECK,
         *_factual_checks(),
         *_behaviour_checks(),
     ]

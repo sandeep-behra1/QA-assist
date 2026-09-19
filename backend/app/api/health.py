@@ -24,4 +24,7 @@ def health(db: Session = Depends(get_db)) -> dict:
         "llm_model": settings.llm_model if settings.llm_provider != "mock" else None,
         # Whether a key is configured -- never the key itself.
         "llm_ready": settings.llm_ready,
+        "stt_ready": settings.stt_ready,
+        "stt_model": settings.groq_stt_model if settings.stt_ready else None,
+        "demo_mode": settings.demo_mode,
     }

@@ -41,6 +41,7 @@ from app.models import (
     Site,
     TeamLeader,
     Transcript,
+    TranscriptionJob,
     TranscriptSegment,
     Vertical,
 )
@@ -66,6 +67,7 @@ SITES = [("JAIPUR", "Jaipur"), ("MANILA", "Manila"), ("SYDNEY", "Sydney")]
 
 # Deletion order respects foreign keys.
 _DELETE_ORDER = [
+    TranscriptionJob,
     Evidence,
     HumanOverride,
     CheckResult,

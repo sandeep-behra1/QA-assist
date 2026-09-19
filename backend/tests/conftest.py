@@ -23,6 +23,11 @@ os.environ["MEDIA_ROOT"] = str(_TMP_ROOT / "media")
 # Real environment variables beat backend/.env, so a developer's Groq key can
 # never make the suite hit the network, spend quota, or turn nondeterministic.
 os.environ["LLM_PROVIDER"] = "mock"
+# An empty value still counts as "set", so backend/.env cannot supply a Groq key
+# either: no test can reach the network for chat OR speech-to-text.
+os.environ["GROQ_API_KEY"] = ""
+os.environ["LLM_API_KEY"] = ""
+os.environ["DEMO_MODE"] = "true"
 
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402

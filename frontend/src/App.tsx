@@ -2,6 +2,7 @@ import { Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { Configuration } from "./pages/Configuration";
 import { Dashboard } from "./pages/Dashboard";
+import { DemoData } from "./pages/DemoData";
 import { LeadCreate } from "./pages/LeadCreate";
 import { LeadDetail } from "./pages/LeadDetail";
 import { Leads } from "./pages/Leads";
@@ -17,6 +18,7 @@ export default function App() {
         <Route path="leads/:leadId" element={<LeadDetail />} />
         <Route path="review" element={<QAReview />} />
         <Route path="configuration" element={<Configuration />} />
+        <Route path="demo-data" element={<DemoData />} />
       </Route>
     </Routes>
   );

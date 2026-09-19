@@ -33,6 +33,7 @@ class TranscriptSource(StrEnum):
     DEEPGRAM = "DEEPGRAM"
     AZURE = "AZURE"
     OPENAI = "OPENAI"
+    EMBEDDED_DEMO = "EMBEDDED_DEMO"
 
 
 class TranscriptionStatus(StrEnum):
@@ -40,6 +41,25 @@ class TranscriptionStatus(StrEnum):
     PENDING = "PENDING"
     AVAILABLE = "AVAILABLE"
     FAILED = "FAILED"
+
+
+class TranscriptionJobStatus(StrEnum):
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+class DiarizationMode(StrEnum):
+    """How speakers were separated.
+
+    CHANNEL is the trustworthy one: a dual-channel recording (agent on one
+    channel, customer on the other) attributes every word deterministically.
+    NONE means speakers are UNKNOWN, and checks that need to know who said
+    something resolve to UNCERTAIN rather than guessing.
+    """
+
+    CHANNEL = "CHANNEL"
+    EMBEDDED = "EMBEDDED"
+    NONE = "NONE"
 
 
 class CheckType(StrEnum):
@@ -171,6 +191,10 @@ class AuditEventType(StrEnum):
     SALE_ROUTED_TO_REVIEW = "SALE_ROUTED_TO_REVIEW"
     HUMAN_REVIEW_OPENED = "HUMAN_REVIEW_OPENED"
     CHECK_OVERRIDDEN = "CHECK_OVERRIDDEN"
+    TRANSCRIPTION_COMPLETED = "TRANSCRIPTION_COMPLETED"
+    TRANSCRIPTION_FAILED = "TRANSCRIPTION_FAILED"
+    DATA_EDITED = "DATA_EDITED"
+    DEMO_RESET = "DEMO_RESET"
 
 
 class ExtractionMethod(StrEnum):

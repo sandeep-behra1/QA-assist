@@ -1,4 +1,7 @@
+import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
+import { api } from "../api/client";
+import type { HealthInfo } from "../types";
 
 const NAV = [
   { to: "/", label: "Dashboard", end: true },
@@ -9,6 +12,14 @@ const NAV = [
 ];
 
 export function Layout() {
+  const [health, setHealth] = useState<HealthInfo | null>(null);
+
+  useEffect(() => {
+    api.health().then(setHealth).catch(() => setHealth(null));
+  }, []);
+
+  const links = health?.demo_mode ? [...NAV, { to: "/demo-data", label: "Demo data", end: false }] : NAV;
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -20,7 +31,7 @@ export function Layout() {
           </div>
         </div>
         <nav className="app-nav">
-          {NAV.map((item) => (
+          {links.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -31,6 +42,16 @@ export function Layout() {
             </NavLink>
           ))}
         </nav>
+        {health && (
+          <div className="app-status" title="What this backend is connected to">
+            <span className={`status-pill ${health.stt_ready ? "status-on" : "status-off"}`}>
+              Speech: {health.stt_ready ? "live" : "offline demo"}
+            </span>
+            <span className={`status-pill ${health.llm_provider !== "mock" && health.llm_ready ? "status-on" : "status-off"}`}>
+              LLM: {health.llm_provider === "mock" ? "mock" : health.llm_ready ? health.llm_provider : "not configured"}
+            </span>
+          </div>
+        )}
       </header>
       <main className="app-main">
         <Outlet />

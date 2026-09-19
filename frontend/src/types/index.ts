@@ -349,6 +349,127 @@ export interface DashboardSummary {
   }[];
 }
 
+export interface HealthInfo {
+  status: string;
+  database: string;
+  llm_provider: string;
+  llm_model: string | null;
+  llm_ready: boolean;
+  stt_ready: boolean;
+  stt_model: string | null;
+  demo_mode: boolean;
+}
+
+export interface TranscriptionProvider {
+  key: string;
+  label: string;
+  model: string | null;
+  ready: boolean;
+  note: string | null;
+}
+
+export interface TranscriptionJob {
+  id: string;
+  status: "COMPLETED" | "FAILED";
+  provider: string;
+  model: string | null;
+  language: string;
+  diarization: "CHANNEL" | "EMBEDDED" | "NONE";
+  audio_filename: string;
+  audio_size_bytes: number;
+  duration_seconds: number | null;
+  channels: number | null;
+  latency_ms: number | null;
+  warnings: string[];
+  error: string | null;
+  lead_id: number | null;
+  created_at: string;
+  segments: TranscriptSegment[];
+}
+
+export interface DemoPreset {
+  key: string;
+  filename: string;
+  title: string;
+  expected_gate: GateDecision;
+  demonstrates: string;
+  audio_generated: boolean;
+  audio_size_bytes: number | null;
+  preset: {
+    lead_id: number;
+    vertical_code: string;
+    retailer_code: string;
+    plan_code: string;
+    agent_name: string;
+    campaign: string | null;
+    call_datetime: string;
+    customer_name: string;
+    customer_email: string;
+    customer_phone: string;
+    customer_dob: string;
+    address_line1: string;
+    suburb: string;
+    state: string;
+    postcode: string;
+    attributes: Record<string, unknown>;
+  };
+}
+
+export interface DemoTableInfo {
+  name: string;
+  rows: number;
+  editable_columns: string[];
+}
+
+export interface DemoColumn {
+  name: string;
+  type: string;
+  editable: boolean;
+  nullable: boolean;
+}
+
+export interface DemoTablePage {
+  name: string;
+  total: number;
+  limit: number;
+  offset: number;
+  primary_key: string;
+  columns: DemoColumn[];
+  rows: Record<string, unknown>[];
+}
+
+export interface DemoEditResult {
+  changed: boolean;
+  changes: Record<string, { before: unknown; after: unknown }>;
+  row: Record<string, unknown>;
+}
+
+export interface CheckChange {
+  check_code: string;
+  check_name: string;
+  critical: boolean;
+  before_status: CheckStatus | null;
+  after_status: CheckStatus | null;
+  before_observed: string | null;
+  after_observed: string | null;
+  before_expected: string | null;
+  after_expected: string | null;
+  reason_after: string;
+}
+
+export interface RunDiff {
+  lead_id: number;
+  base_run_id: number;
+  target_run_id: number;
+  base_gate: GateDecision | null;
+  target_gate: GateDecision | null;
+  gate_changed: boolean;
+  base_qa_score: number | null;
+  target_qa_score: number | null;
+  changes: CheckChange[];
+  unchanged_count: number;
+}
+
 export interface ValidationResult {
   lead_id: number;
   ready_to_score: boolean;

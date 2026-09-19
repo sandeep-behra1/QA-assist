@@ -43,7 +43,39 @@ def evaluate_semantic(ctx: EvaluationContext) -> EvaluationOutcome:
             reason="No transcript segments were available for the configured evidence source.",
         )
 
-    result = ctx.interpreter.evaluate(check, located.candidates, ctx.authoritative_context)
+    shown = located.candidates
+
+    # Some behaviours only exist when something triggers them: there is nothing
+    # to judge about objection handling on a call where no objection was raised.
+    # That is decided deterministically, and it also means the model is not
+    # called (or sent the whole transcript) for calls where it has nothing to do.
+    cues = config.get("applies_when_keywords")
+    if cues:
+        triggered = locate(
+            ctx.segments,
+            check.evidence_source,
+            cues,
+            context_window=int(config.get("context_window", 2)),
+        )
+        if not triggered.candidates:
+            return EvaluationOutcome(
+                status=CheckStatus.NOT_APPLICABLE,
+                confidence_level=ConfidenceLevel.HIGH,
+                reason=(
+                    "None of this behaviour's trigger phrases appeared in the call (for example, the "
+                    "customer raised no objection), so there was nothing to assess."
+                ),
+            )
+        shown = triggered.candidates
+
+    # Minimum necessary data: for greeting/closing behaviours only the start and
+    # end of the call are sent, not the whole transcript.
+    sample = config.get("segment_sample")
+    if sample:
+        first, last = int(sample.get("first", 0)), int(sample.get("last", 0))
+        shown = shown[:first] + shown[max(len(shown) - last, first) :]
+
+    result = ctx.interpreter.evaluate(check, shown, ctx.authoritative_context)
     interpretation = result.interpretation
     call = result.call
 
@@ -60,7 +92,8 @@ def evaluate_semantic(ctx: EvaluationContext) -> EvaluationOutcome:
         "claimed_segment_ids": list(interpretation.evidence_segment_ids),
     }
 
-    validation = validate_segment_ids(located.scope, interpretation.evidence_segment_ids)
+    # A citation is only valid if it points at something the model was shown.
+    validation = validate_segment_ids(shown, interpretation.evidence_segment_ids)
     llm_metadata["invalid_segment_ids"] = validation.invalid_ids
 
     status = _DECISION_MAP.get(interpretation.decision, CheckStatus.UNCERTAIN)

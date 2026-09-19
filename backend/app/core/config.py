@@ -12,6 +12,8 @@ GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 # Groq retires and renames models (llama-3.3-70b-versatile is already gone). If a call
 # fails with a 404 "model does not exist", set GROQ_MODEL to a current one.
 DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
+# Speech-to-text model (Groq hosts Whisper). Same rule: override with GROQ_STT_MODEL if retired.
+DEFAULT_GROQ_STT_MODEL = "whisper-large-v3-turbo"
 
 LLM_PROVIDERS = {"mock", "groq", "openai_compatible"}
 
@@ -70,6 +72,17 @@ class Settings(BaseModel):
     llm_prompt_version: str = "evidence-interpreter-v2"
     llm_timeout_seconds: float = 20.0
 
+    # Speech-to-text. The Groq key is independent of LLM_PROVIDER, so audio can
+    # be transcribed live even while the interpretive checks run on the mock.
+    groq_api_key: str | None = None
+    groq_base_url: str = GROQ_BASE_URL
+    groq_stt_model: str = DEFAULT_GROQ_STT_MODEL
+    transcription_timeout_seconds: float = 180.0
+    max_upload_bytes: int = 30 * 1024 * 1024
+
+    # Demo tooling: the Demo Data page, presets and reset. Off by default.
+    demo_mode: bool = False
+
     # A transcript segment whose ASR confidence is below this is treated as
     # unreliable transcription, which caps evaluation confidence at LOW.
     asr_confidence_floor: float = 0.60
@@ -85,6 +98,11 @@ class Settings(BaseModel):
         if self.llm_provider == "mock":
             return True
         return bool(self.llm_api_key)
+
+    @property
+    def stt_ready(self) -> bool:
+        """True when live (Groq Whisper) transcription can be attempted."""
+        return bool(self.groq_api_key)
 
 
 @lru_cache
@@ -115,5 +133,10 @@ def get_settings() -> Settings:
         llm_api_key=api_key or None,
         llm_base_url=base_url or None,
         llm_model=model,
+        groq_api_key=os.getenv("GROQ_API_KEY") or None,
+        groq_base_url=os.getenv("GROQ_BASE_URL", GROQ_BASE_URL),
+        groq_stt_model=os.getenv("GROQ_STT_MODEL", DEFAULT_GROQ_STT_MODEL),
+        demo_mode=os.getenv("DEMO_MODE", "").lower() in {"1", "true", "yes"},
+        max_upload_bytes=int(os.getenv("MAX_UPLOAD_BYTES", str(30 * 1024 * 1024))),
         asr_confidence_floor=float(os.getenv("ASR_CONFIDENCE_FLOOR", "0.60")),
     )

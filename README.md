@@ -399,6 +399,34 @@ segment ids it cited that did not exist.
 is false" from "concession is unknown", because conflating them would let a
 missing CRM field silently pass a check.
 
+### Extra guards for messy real speech
+
+Real transcripts are noisier than scripted ones. These closed the ways a wrong
+value could otherwise slip through (all deterministic, all tested in
+`tests/test_false_pass_guards.py`):
+
+* **Keywords match on word boundaries**, and "peak rate" never matches inside
+  "off-peak rate", so an off-peak figure cannot be read as the peak rate.
+* **Numbers must carry a rate unit** (`cents`, `$`, `kWh`) to count, and every
+  candidate is collected rather than the first one taken: "33.14 cents for 12
+  months" ignores the 12; two different rates in a call conflict to UNCERTAIN.
+  The spoken word "for" is never read as the digit 4.
+* **Approximate or range figures are never verified**: "around", "about",
+  "between", "33 to 34 cents" → UNCERTAIN even if the right number appears.
+* **Answers found in the next turn** (question in one turn, answer in the next)
+  are read via a configured context window; a wrong answer there still FAILs.
+* **Speech-to-text artefacts**: a disclosure split across adjacent segments, or
+  with words run together ("assuranceand"), still matches — at MEDIUM
+  confidence — but never across the other party speaking, and never for short
+  phrases. Number words and digits meet on both sides ("fourteen" = "14").
+* **One-time codes read aloud are redacted**, alongside card numbers.
+* **Dead air is not flagged after "I'll mute the recording"**, with a short
+  look-back so the customer's "okay" doesn't defeat the exclusion.
+* **The model is only shown what it needs** and may only cite what it was
+  shown: objection handling runs only when the customer raised a concern;
+  rapport sees only the opening and closing; a citation outside that set is
+  discarded.
+
 ## 11. Gate logic
 
 `apply_gate_policy()` in
@@ -467,27 +495,58 @@ The seed attaches synthetic audio to three sales (`3613790`, `3613827`,
 seeded audio is a tone rendered from the transcript's own timings (a different
 pitch per speaker, real silence in the gaps) — there is no speech in it.
 
-## 14. Adding transcription later
-
-Transcription is deliberately **not** implemented. The seam is already in
-place:
+## 14. Transcription (audio in, canonical transcript out)
 
 ```
-Audio  →  [ transcription provider ]  →  Canonical Transcript  →  existing pipeline
+Audio ──▶ [ transcription provider ] ──▶ canonical segments ──▶ TranscriptionJob (staged)
+                                                                     │  lead created / chosen
+                                                                     ▼
+                                              attach ──▶ Transcript + Call audio ──▶ existing pipeline
 ```
 
-* `Call.transcription_status` already moves through
-  `NOT_STARTED → PENDING → AVAILABLE → FAILED`.
-* `services/ingestion/transcript.py` already parses, validates, redacts and
-  stores canonical segments — a provider adapter just calls `store_transcript`.
-* `TranscriptSource` already enumerates `WHISPER`, `DEEPGRAM`, `AZURE`,
-  `OPENAI`, `CIMET`.
-* `asr_confidence` is already wired into evaluation confidence, so noisy
-  transcription will automatically make results more conservative the day real
-  ASR arrives.
+The intake flow is *upload audio → Transcribe → confirm sale details → Save &
+Score*, so a job exists **before** the sale does. Jobs are persisted
+(`transcription_jobs`), which also gives an audit trail of what each provider
+returned. The scoring engine never sees a provider; it only reads canonical
+segments.
 
-A "Transcribe Audio" button becomes one new service + one endpoint. Nothing
-downstream changes.
+**Providers** (`services/transcription/providers.py`, one small class each):
+
+* **`groq`** — live speech recognition via Groq's Whisper
+  (`GROQ_STT_MODEL`, default `whisper-large-v3-turbo`), using the same
+  `GROQ_API_KEY` as the LLM. Works even when `LLM_PROVIDER=mock`.
+* **`embedded`** — offline, no recognition. Reads the transcript embedded in a
+  recording made by the demo generator. It is labelled as such everywhere and
+  exists so a demo still works with no network or key.
+
+**Speakers come from channels, not guesses.** Call-centre audio is normally
+dual-channel (agent left, customer right). Each channel is transcribed on its
+own and attributed to its role, so speaker separation is deterministic. Mono
+audio still works, but every line is `UNKNOWN` and checks that depend on who
+spoke resolve to `UNCERTAIN` — a warning says so.
+
+**Timestamps are corrected from the audio.** Whisper's segment times are
+approximate (they snap to its 30-second windows) and it sometimes merges a
+speaker's lines across the other person's turn. On dual-channel calls the
+system measures each channel's actual speech activity, splits merged turns at
+the other party's silence using word-level times, and clamps every segment
+inward to the measured speech. It never widens a segment, so it cannot make a
+line claim words from another turn. Measured against a 160-second scripted
+call: median start error 0.10s, 90th percentile 0.53s (uncorrected: worst case
+was 20s).
+
+**Confidence** is anchored to Whisper's own reliability threshold
+(`avg_logprob` below −1.0 is "unreliable", above about −0.3 is clean), mapped
+linearly to 0–1. A dubious transcription lowers evaluation confidence, and a
+LOW-confidence critical check becomes UNCERTAIN.
+
+**Also:** likely non-speech ("Thank you." hallucinated on a silent channel) is
+dropped and counted in the job's warnings; audio is capped at 30 MB
+(`MAX_UPLOAD_BYTES`); HTTP 429/503 are retried once or twice within a bounded
+wait; one-time codes and card numbers are redacted before the job is stored.
+
+The "Transcribe Audio" button on a sale that already has a recording calls
+`POST /leads/{id}/transcribe`.
 
 ## 15. Why RAG is intentionally not used
 
@@ -582,6 +641,61 @@ to APPROVED while the machine's UNCERTAIN stays on the record → check the Audi
 Trail → Configuration to see v1/v2 history and why published versions are
 read-only.
 
+### Demo recordings (audio + timestamped transcripts)
+
+Eleven synthetic Energy calls, generated locally with the two offline Windows
+voices. Each is a **dual-channel** WAV (agent left, customer right) whose
+transcript timestamps come from the measured speech, so they line up with the
+audio exactly.
+
+```powershell
+cd backend
+.\.venv\Scripts\python -m app.demo.generate          # -> backend/demo_calls/
+.\.venv\Scripts\python -m app.demo.generate --list
+```
+
+This writes the recordings, a sidecar `.transcript.json` for each, and
+`DEMO_SHEET.md` listing every file with its expected outcome and the sale
+details to enter. The folder is git-ignored; the scripts are what is committed.
+Generation takes about 25 seconds and needs Windows.
+
+| File | Expected | Demonstrates |
+|---|---|---|
+| `01_clean_approve` | **APPROVED** | Every critical check passes, including the payment-mute sequence |
+| `02_wrong_rate_hold` | **HOLD** | Agent quotes last year's rate |
+| `03_no_disclaimer_hold` | **HOLD** | Recording disclaimer never read (absence after a full-scope search) |
+| `04_email_mismatch_hold` | **HOLD** | Email read back with the wrong domain |
+| `05_rate_corrected_review` | **HUMAN_REVIEW** | Wrong rate then corrected: contradictory evidence, no precedence rule |
+| `06_life_support_unclear_review` | **HUMAN_REVIEW** | Hedged answer to a critical question is never guessed |
+| `07_hedged_rate_review` | **HUMAN_REVIEW** | "Around thirty-three cents": right number, still unverifiable |
+| `08_payment_not_muted_hold` | **HOLD** | Payment taken without muting the recording |
+| `09_coaching_notes_approve` | **APPROVED** | 14s dead air and repeated interruptions are notes, not blockers |
+| `10_objection_handled_approve` | **APPROVED** | Hesitant customer, gift card, objection handled |
+| `11_flagship_messy_approve` | **APPROVED** | Long messy call modelled on a real recording: filler, ID verification, mute for payment, an OTP read aloud (redacted), cross-sell |
+
+**Live demo flow:** Add Lead → choose a `.wav` → **Transcribe** (live Groq, or
+the offline provider) → the sale details fill in from the file name and stay
+editable → **Save & Score**. Every scenario's expected gate is asserted by the
+test suite (`tests/test_demo_scenarios.py`) and was also verified end to end
+through the running API.
+
+### Demo data page (`DEMO_MODE=true`)
+
+For showing a re-score. Browse leads, rate cards, transcripts, runs, evidence,
+overrides, checklists and the audit trail; edit the *inputs* a sale is scored
+against; reset everything.
+
+* Editable: a lead's CRM fields, a rate card's rates and dates, a transcript
+  line's text. **Read-only:** check results, evidence, overrides, checklist
+  rules and the audit trail (published rules stay immutable; history stays
+  history). No raw SQL.
+* Every edit is written to the audit trail with before and after values.
+* After editing, open the sale and press **Re-score**: a new run is created,
+  the old one is untouched, and a **"Changes since run #N"** panel shows the
+  gate and each check that moved — for example *HOLD → APPROVED* with
+  `Peak Usage Rate Accuracy: FAIL → PASS`.
+* The routes return 404 unless `DEMO_MODE=true`; the page is hidden too.
+
 ## 18. Current assumptions
 
 * Scoring examples focus on Energy; the schema and UI already carry seven
@@ -607,9 +721,30 @@ read-only.
   visually verified in a browser** — no browser automation was available in
   the environment it was built in. Please click through it and report anything
   that looks wrong.
-* Transcription is not implemented (by design — see §14).
-* `python-multipart` streams uploads to disk with no size cap; add one before
-  exposing this to real users.
+* **Live transcription needs dual-channel audio for full checking.** Mono
+  recordings transcribe but leave speakers `UNKNOWN`, so speaker-dependent
+  checks return UNCERTAIN (there is no acoustic diarisation).
+* **Groq's free tier is tight** (8,000 tokens/minute for the chat model; an
+  hourly audio-seconds budget for Whisper). Under your policy a check that
+  errors can never approve, so an exhausted quota routes otherwise-clean sales
+  to HUMAN_REVIEW. Coaching checks send only the minimum (objection handling
+  only when a concern was raised; rapport only the opening and closing), and
+  rate limits are retried, but bulk scoring needs a paid tier.
+* **Live speech recognition is not perfect, and the gate is built to absorb that
+  safely.** Run against Groq Whisper, the clean demo call reaches APPROVED and a
+  call with a wrong disclosure still reaches HOLD, but a fast, messy call can
+  lose decimals ("33 cents" for 33.14), merge turns or miss a word. Every such
+  error we observed moved a sale to a *more cautious* gate (HOLD or
+  HUMAN_REVIEW), never toward APPROVED, because a value that is missing or
+  different can only fail or be uncertain. What ASR cannot rule out is a
+  mis-heard figure that happens to equal the CRM value, so a reviewer can jump to
+  the exact audio moment behind every check. For a guaranteed walkthrough use the
+  **embedded** provider (all 11 recordings reach their intended gate). No
+  vocabulary "prompt" is sent to Whisper: one leaked its own words into the
+  transcript, and a compliance transcript must contain only what was said.
+* Demo audio is generated with Windows speech synthesis, so it can only be
+  (re)generated on Windows. Whisper timestamps are corrected from the audio but
+  remain approximate on very noisy recordings.
 * The seed's `--reset` deletes scoring history; it is a demo convenience, not
   an operational tool.
 

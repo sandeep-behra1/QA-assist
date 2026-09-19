@@ -18,6 +18,7 @@ from app.services.normalization.numeric import (
     compare_numeric,
     convert_to_unit,
     extract_numeric,
+    extract_numeric_candidates,
     normalize_numeric_value,
 )
 from app.services.normalization.phone import compare_phones, extract_phone, normalize_phone
@@ -26,8 +27,11 @@ from app.services.normalization.text import (
     compare_exact_text,
     contains_exact_phrase,
     contains_normalized_phrase,
+    contains_phrase_ignoring_spacing,
+    normalize_for_phrase,
     normalize_text,
     token_coverage,
+    words_to_digits,
 )
 
 __all__ = [
@@ -41,19 +45,23 @@ __all__ = [
     "compare_phones",
     "contains_exact_phrase",
     "contains_normalized_phrase",
+    "contains_phrase_ignoring_spacing",
     "convert_to_unit",
     "extract_boolean",
     "extract_date",
     "extract_email",
     "extract_identifier",
     "extract_numeric",
+    "extract_numeric_candidates",
     "extract_phone",
     "normalize_boolean",
     "normalize_email",
     "normalize_identifier",
     "normalize_numeric_value",
+    "normalize_for_phrase",
     "normalize_phone",
     "normalize_text",
     "redact_sensitive_data",
     "token_coverage",
+    "words_to_digits",
 ]

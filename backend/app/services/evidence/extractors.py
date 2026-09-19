@@ -20,7 +20,7 @@ from app.services.normalization import (
     extract_date,
     extract_email,
     extract_identifier,
-    extract_numeric,
+    extract_numeric_candidates,
     extract_phone,
 )
 
@@ -31,6 +31,7 @@ class ExtractedValue:
     value: Any
     extraction_method: str
     display: str
+    hedged: bool = False
 
     @property
     def comparable(self) -> Any:
@@ -52,10 +53,36 @@ def extract_values(
     config = config or {}
     extracted: list[ExtractedValue] = []
     for segment in segments:
+        if method == EvaluationMethod.NUMERIC.value:
+            # Every unit-bearing number, not just the first: a segment that
+            # states two different values must conflict, never pick one.
+            extracted.extend(_extract_numbers(segment, config))
+            continue
         result = _extract_one(method, segment, config, expected, reference_date)
         if result is not None:
             extracted.append(result)
     return extracted
+
+
+def _extract_numbers(segment: TranscriptSegment, config: dict) -> list[ExtractedValue]:
+    unit = config.get("unit") or ""
+    results: list[ExtractedValue] = []
+    for reading in extract_numeric_candidates(segment.text, keywords=config.get("search_keywords")):
+        value = convert_to_unit(reading, config.get("unit"))
+        results.append(
+            ExtractedValue(
+                segment=segment,
+                value=value,
+                extraction_method=(
+                    ExtractionMethod.SPOKEN_NUMBER.value
+                    if reading.spoken
+                    else ExtractionMethod.WRITTEN_NUMBER.value
+                ),
+                display=f"{value:g} {unit}".strip(),
+                hedged=reading.hedged,
+            )
+        )
+    return results
 
 
 def _extract_one(
@@ -79,23 +106,6 @@ def _extract_one(
                 ExtractionMethod.WRITTEN_EMAIL.value if written else ExtractionMethod.SPOKEN_EMAIL.value
             ),
             display=value,
-        )
-
-    if method == EvaluationMethod.NUMERIC.value:
-        reading = extract_numeric(text, keywords=config.get("search_keywords"))
-        if reading is None:
-            return None
-        value = convert_to_unit(reading, config.get("unit"))
-        unit = config.get("unit") or ""
-        return ExtractedValue(
-            segment=segment,
-            value=value,
-            extraction_method=(
-                ExtractionMethod.SPOKEN_NUMBER.value
-                if reading.spoken
-                else ExtractionMethod.WRITTEN_NUMBER.value
-            ),
-            display=f"{value:g} {unit}".strip(),
         )
 
     if method == EvaluationMethod.DATE.value:

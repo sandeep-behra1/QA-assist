@@ -5,17 +5,25 @@ import type {
   Checklist,
   ChecklistVersion,
   DashboardSummary,
+  DemoEditResult,
+  DemoPreset,
+  DemoTableInfo,
+  DemoTablePage,
+  HealthInfo,
   LeadDetail,
   LeadSummary,
   Plan,
   QueueItem,
   RateCard,
   Retailer,
+  RunDiff,
   ScoringRun,
   ScoringRunSummary,
   Site,
   TeamLeader,
   Transcript,
+  TranscriptionJob,
+  TranscriptionProvider,
   ValidationResult,
   Vertical,
 } from "../types";
@@ -60,7 +68,7 @@ const qs = (params: Record<string, string | number | undefined | null>) => {
 };
 
 export const api = {
-  health: () => request<{ status: string; database: string; llm_provider: string }>("/health"),
+  health: () => request<HealthInfo>("/health"),
   dashboard: () => request<DashboardSummary>("/dashboard/summary"),
 
   verticals: () => request<Vertical[]>("/verticals"),
@@ -149,4 +157,39 @@ export const api = {
 
   leadAuditEvents: (leadId: number) => request<AuditEvent[]>(`/leads/${leadId}/audit-events`),
   auditEvents: (limit = 100) => request<AuditEvent[]>(`/audit-events${qs({ limit })}`),
+
+  // --- transcription ---
+  transcriptionProviders: () => request<TranscriptionProvider[]>("/transcription/providers"),
+  createTranscriptionJob: (file: File, provider?: string) => {
+    const form = new FormData();
+    form.append("file", file);
+    if (provider) form.append("provider", provider);
+    return request<TranscriptionJob>("/transcription-jobs", { method: "POST", body: form });
+  },
+  attachTranscriptionJob: (jobId: string, leadId: number) =>
+    request<Transcript>(`/transcription-jobs/${jobId}/attach`, {
+      method: "POST",
+      body: JSON.stringify({ lead_id: leadId }),
+    }),
+  transcribeLeadAudio: (leadId: number, provider?: string) =>
+    request<TranscriptionJob>(`/leads/${leadId}/transcribe`, {
+      method: "POST",
+      body: JSON.stringify({ provider: provider ?? null }),
+    }),
+
+  // --- run comparison ---
+  runDiff: (runId: number, againstRunId: number) =>
+    request<RunDiff>(`/scoring-runs/${runId}/diff/${againstRunId}`),
+
+  // --- demo tooling (only exists when the backend runs with DEMO_MODE=true) ---
+  demoStatus: () => request<{ demo_mode: boolean; tables: DemoTableInfo[]; presets: number }>("/demo/status"),
+  demoPresets: () => request<DemoPreset[]>("/demo/presets"),
+  demoTable: (name: string, limit = 25, offset = 0) =>
+    request<DemoTablePage>(`/demo/tables/${name}${qs({ limit, offset })}`),
+  demoEdit: (name: string, rowId: number, changes: Record<string, unknown>) =>
+    request<DemoEditResult>(`/demo/tables/${name}/${rowId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ changes }),
+    }),
+  demoReset: () => request<Record<string, unknown>>("/demo/reset", { method: "POST" }),
 };

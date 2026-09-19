@@ -21,6 +21,7 @@ from app.models.lead import Call, Lead
 from app.models.review import HumanOverride, HumanReview
 from app.models.scoring import CheckResult, Evidence, ScoringRun
 from app.models.transcript import Transcript, TranscriptSegment
+from app.models.transcription import TranscriptionJob
 
 __all__ = [
     "Agent",
@@ -42,6 +43,7 @@ __all__ = [
     "ScoringRun",
     "Site",
     "TeamLeader",
+    "TranscriptionJob",
     "Transcript",
     "TranscriptSegment",
     "Vertical",

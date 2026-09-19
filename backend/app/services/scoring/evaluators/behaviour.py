@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from app.core.enums import CheckStatus, ConfidenceLevel, ExecutionStatus, ExtractionMethod
 from app.services.evidence import build_scope
+from app.services.normalization import normalize_text
 from app.services.scoring.context import EvaluationContext, EvaluationOutcome, EvidenceRef
 from app.services.scoring.evaluators.semantic import evaluate_semantic
 
@@ -58,16 +59,35 @@ def _evaluate_dead_air(ctx: EvaluationContext, config: dict) -> EvaluationOutcom
             expected_value=f"< {threshold:g}s",
         )
 
+    # A silence that follows "I'm going to mute the recording" is the payment
+    # privacy sequence working as intended, not dead air.
+    excused_after = [p.lower() for p in config.get("exclude_gaps_after_phrases", [])]
+
     gaps: list[tuple[float, object, object]] = []
-    for previous, following in zip(segments, segments[1:]):
+    excused: list[float] = []
+    for index in range(len(segments) - 1):
+        previous, following = segments[index], segments[index + 1]
         gap = following.start_time - previous.end_time
-        if gap >= threshold:
-            gaps.append((gap, previous, following))
+        if gap < threshold:
+            continue
+        # Look back a couple of segments: after "I'll mute the recording" the
+        # customer naturally says "okay" before the silence begins.
+        recent = segments[max(0, index - 2) : index + 1]
+        if any(phrase in normalize_text(seg.text) for seg in recent for phrase in excused_after):
+            excused.append(gap)
+            continue
+        gaps.append((gap, previous, following))
+
+    excused_note = (
+        f" {len(excused)} gap(s) totalling {sum(excused):.1f}s were excused as a recording-mute sequence."
+        if excused
+        else ""
+    )
 
     if not gaps:
         return EvaluationOutcome(
             status=CheckStatus.PASS,
-            reason=f"No silence gap reached the {threshold:g}s threshold.",
+            reason=f"No silence gap reached the {threshold:g}s threshold.{excused_note}",
             confidence_level=ConfidenceLevel.HIGH,
             observed_value="0 gaps",
             expected_value=f"< {threshold:g}s",
@@ -79,6 +99,7 @@ def _evaluate_dead_air(ctx: EvaluationContext, config: dict) -> EvaluationOutcom
         reason=(
             f"Detected {len(gaps)} silence gap(s) at or above {threshold:g}s. The longest was "
             f"{longest_gap:.1f}s, between {before.end_time:.1f}s and {after.start_time:.1f}s."
+            f"{excused_note}"
         ),
         confidence_level=ConfidenceLevel.HIGH,
         observed_value=f"{longest_gap:.1f}s",

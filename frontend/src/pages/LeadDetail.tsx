@@ -7,6 +7,7 @@ import { GateBadge } from "../components/Badges";
 import { CheckCard } from "../components/CheckCard";
 import { Card, DefinitionList, EmptyState, ErrorMessage, Loading } from "../components/Common";
 import { OverrideModal } from "../components/OverrideModal";
+import { RunComparison } from "../components/RunComparison";
 import { TranscriptPanel } from "../components/TranscriptPanel";
 import type {
   AuditEvent,
@@ -34,6 +35,7 @@ export function LeadDetail() {
   const [overrideTarget, setOverrideTarget] = useState<CheckResult | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [transcribing, setTranscribing] = useState(false);
 
   const playerRef = useRef<AudioPlayerHandle>(null);
 
@@ -102,6 +104,20 @@ export function LeadDetail() {
         .map((segment) => segment.segment_id)
     );
     playerRef.current?.playRange(start, end);
+  };
+
+  const transcribeAudio = async () => {
+    setTranscribing(true);
+    setError(null);
+    try {
+      const job = await api.transcribeLeadAudio(leadId);
+      if (job.status === "FAILED") setError(`Transcription failed: ${job.error ?? "unknown error"}`);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Transcription failed.");
+    } finally {
+      setTranscribing(false);
+    }
   };
 
   const uploadAudio = async (file: File) => {
@@ -190,6 +206,25 @@ export function LeadDetail() {
               ))}
             </div>
           )}
+        </Card>
+      )}
+
+      {run && <RunComparison run={run} runs={runs} />}
+
+      {hasAudio && !transcript && (
+        <Card className="transcribe-card">
+          <div className="transcribe-row">
+            <div>
+              <strong>This sale has a recording but no transcript yet.</strong>
+              <div className="muted small">
+                Transcribe it to produce the timestamped transcript the checks read. The recording itself
+                is not changed.
+              </div>
+            </div>
+            <button className="btn-primary" onClick={transcribeAudio} disabled={transcribing}>
+              {transcribing ? "Transcribing…" : "Transcribe audio"}
+            </button>
+          </div>
         </Card>
       )}
 

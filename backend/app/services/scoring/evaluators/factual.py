@@ -58,7 +58,12 @@ def evaluate_factual(ctx: EvaluationContext) -> EvaluationOutcome:
     expected_raw = lookup.value
     expected_display = _display(expected_raw, config)
 
-    located = locate(ctx.segments, check.evidence_source, config.get("search_keywords"))
+    located = locate(
+        ctx.segments,
+        check.evidence_source,
+        config.get("search_keywords"),
+        context_window=int(config.get("context_window", 0)),
+    )
     if located.scope_size == 0:
         return EvaluationOutcome(
             status=CheckStatus.UNCERTAIN,
@@ -86,6 +91,22 @@ def evaluate_factual(ctx: EvaluationContext) -> EvaluationOutcome:
             ),
             confidence_level=ConfidenceLevel.LOW,
             expected_value=expected_display,
+        )
+
+    if any(item.hedged for item in extracted):
+        return EvaluationOutcome(
+            status=CheckStatus.UNCERTAIN,
+            reason=(
+                "The value was stated approximately or as a range (for example 'around' or "
+                "'between'), so it cannot be verified against the authoritative record."
+            ),
+            confidence_level=ConfidenceLevel.LOW,
+            observed_value=", ".join(item.display for item in extracted),
+            expected_value=expected_display,
+            evidence=[
+                EvidenceRef(segment=item.segment, extraction_method=item.extraction_method)
+                for item in extracted
+            ],
         )
 
     values = distinct_values(extracted)

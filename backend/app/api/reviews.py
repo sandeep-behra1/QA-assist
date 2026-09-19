@@ -9,8 +9,10 @@ from app.api.mappers import scoring_run_out
 from app.db.session import get_db
 from app.repositories import scoring as scoring_repo
 from app.schemas.audit import AuditEventOut
+from app.schemas.demo import RunDiff
 from app.schemas.review import HumanReviewOut, OpenReviewRequest, QueueItemOut
 from app.schemas.scoring import CheckResultOut, OverrideRequest, ScoringRunOut
+from app.services.scoring.compare import RunComparisonError, compare_runs
 from app.services.review import (
     CheckResultNotFoundError,
     InvalidOverrideError,
@@ -85,3 +87,15 @@ def audit_events(
 ) -> list[AuditEventOut]:
     events = scoring_repo.list_audit_events(db, lead_id=lead_id, event_type=event_type, limit=limit)
     return [AuditEventOut.model_validate(event) for event in events]
+
+@router.get("/scoring-runs/{run_id}/diff/{other_run_id}", response_model=RunDiff)
+def diff_runs(run_id: int, other_run_id: int, db: Session = Depends(get_db)) -> dict:
+    """What changed between two runs of the same sale (run_id is the newer one)."""
+    target = scoring_repo.get_run(db, run_id)
+    base = scoring_repo.get_run(db, other_run_id)
+    if target is None or base is None:
+        raise HTTPException(status_code=404, detail="One of those scoring runs was not found.")
+    try:
+        return compare_runs(base, target)
+    except RunComparisonError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
